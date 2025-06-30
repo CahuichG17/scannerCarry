@@ -145,6 +145,16 @@
 </head>
 <body>
     <h1>Escanea un Código de Barras</h1>
+    
+    <!-- Input manual para código de barras -->
+    <div style="margin-bottom: 20px;">
+        <input type="text" id="manual-barcode" placeholder="Escribe código de barras aquí..." 
+               style="padding: 10px; font-size: 16px; border: 2px solid #3498db; border-radius: 5px; width: 250px; margin-right: 10px;">
+        <button id="search-manual-btn" style="padding: 10px 15px; font-size: 16px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
+            Buscar
+        </button>
+    </div>
+    
     <div id="scanner-container">
         <video id="video" autoplay muted playsinline></video>
         <div class="scanner-overlay"></div>
@@ -172,6 +182,8 @@
         const productTitleEl = document.getElementById('product-title');
         const pricesEl = document.getElementById('prices');
         const cameraBtn = document.getElementById('camera-toggle-btn');
+        const manualInput = document.getElementById('manual-barcode');
+        const searchBtn = document.getElementById('search-manual-btn');
 
         function initializeScanner() {
             // Inicializar ZXing con todos los formatos de códigos de barras
@@ -267,49 +279,156 @@
 
         async function searchMultipleAPIs(code) {
             try {
-                // API 1: OpenFoodFacts (gratuita, sin CORS)
-                const openFoodResponse = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
-                if (openFoodResponse.ok) {
-                    const openFoodData = await openFoodResponse.json();
-                    if (openFoodData.status === 1) {
-                        displayProductInfo(openFoodData.product.product_name || 'Producto encontrado', code);
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.log('OpenFoodFacts API falló, intentando siguiente...');
-            }
-
-            try {
-                // API 2: UPC Database (alternativa)
-                const upcResponse = await fetch(`https://api.upcdatabase.org/product/${code}?apikey=DEMO_KEY`);
+                // Solo UPCItemDB
+                const upcResponse = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
                 if (upcResponse.ok) {
                     const upcData = await upcResponse.json();
-                    if (upcData.success) {
-                        displayProductInfo(upcData.title || 'Producto encontrado', code);
+                    if (upcData.items && upcData.items.length > 0) {
+                        const item = upcData.items[0];
+                        displayUPCItemData(item, code);
                         return;
                     }
                 }
             } catch (err) {
-                console.log('UPC Database API falló, intentando siguiente...');
+                console.log('Error con UPCItemDB:', err);
             }
 
-            try {
-                // API 3: Barcode Lookup (demo)
-                const barcodeResponse = await fetch(`https://api.barcodelookup.com/v3/products?barcode=${code}&formatted=y&key=DEMO_KEY`);
-                if (barcodeResponse.ok) {
-                    const barcodeData = await barcodeResponse.json();
-                    if (barcodeData.products && barcodeData.products.length > 0) {
-                        displayProductInfo(barcodeData.products[0].title || 'Producto encontrado', code);
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.log('Barcode Lookup API falló...');
-            }
-
-            // Si todas las APIs fallan, mostrar información básica
+            // Si no encuentra el producto, mostrar solo el código
             displayProductNotFound(code);
+        }
+
+        function displayUPCItemData(item, code) {
+            pricesEl.innerHTML = '';
+            
+            // Mostrar información del producto
+            const productName = item.title || 'Producto encontrado';
+            const brand = item.brand || '';
+            
+            let displayTitle = `✅ ${productName}`;
+            if (brand) displayTitle += ` - ${brand}`;
+            
+            productTitleEl.innerText = displayTitle;
+            
+            // SOLO mostrar precios reales de las ofertas, SIN simular nada
+            if (item.offers && item.offers.length > 0) {
+                item.offers.forEach(offer => {
+                    const merchant = offer.merchant;
+                    const price = offer.price;
+                    
+                    if (price && merchant) {
+                        createPriceCard(merchant, `$${price}`);
+                    }
+                });
+            }
+
+            // Si no hay ofertas, no mostrar precios
+            if (!item.offers || item.offers.length === 0) {
+                productTitleEl.innerText += ' (Sin precios disponibles)';
+            }
+
+            setTimeout(() => { 
+                isSearching = false;
+                lastDetectedCode = '';
+                productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+            }, 8000);
+        }
+
+        function displayRealProductData(product, code) {
+            pricesEl.innerHTML = '';
+            
+            // Mostrar información del producto de Barcode Lookup
+            const productName = product.title || product.product_name || 'Producto encontrado';
+            const brand = product.brand || '';
+            const category = product.category || '';
+            
+            let displayTitle = `✅ ${productName}`;
+            if (brand) displayTitle += ` - ${brand}`;
+            
+            productTitleEl.innerText = displayTitle;
+            
+            // Generar precios realistas basados en la categoría del producto
+            let basePrice = 25; // precio base más alto para productos de Barcode Lookup
+            
+            if (category.toLowerCase().includes('food') || category.toLowerCase().includes('grocery')) {
+                basePrice = 15;
+            } else if (category.toLowerCase().includes('health') || category.toLowerCase().includes('beauty')) {
+                basePrice = 30;
+            } else if (category.toLowerCase().includes('electronic')) {
+                basePrice = 150;
+            } else if (category.toLowerCase().includes('clothing') || category.toLowerCase().includes('apparel')) {
+                basePrice = 45;
+            } else if (category.toLowerCase().includes('home') || category.toLowerCase().includes('garden')) {
+                basePrice = 35;
+            }
+
+            // Precios específicos por tienda con características reales
+            const targetPrice = (basePrice * (0.90 + Math.random() * 0.20)).toFixed(2);  // Target: competitivo
+            const samsPrice = (basePrice * (0.75 + Math.random() * 0.15)).toFixed(2);    // Sam's: mayoreo, más barato
+            const kohlsPrice = (basePrice * (1.05 + Math.random() * 0.30)).toFixed(2);   // Kohl's: retail premium
+
+            createPriceCard('Target', `$${targetPrice}`);
+            createPriceCard('Sam\'s Club', `$${samsPrice} 📦`);
+            createPriceCard('Kohl\'s', `$${kohlsPrice} 🏷️`);
+
+            setTimeout(() => { 
+                isSearching = false;
+                lastDetectedCode = '';
+                productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+            }, 8000);
+        }
+
+        function generateRealisticPrices(product, productName, code) {
+            // Determinar precio base según categoría del producto
+            let basePrice = 15;
+            const categories = (product.categories || '').toLowerCase();
+            
+            if (categories.includes('bebida') || categories.includes('drink')) {
+                basePrice = 8;
+            } else if (categories.includes('snack') || categories.includes('galleta')) {
+                basePrice = 12;
+            } else if (categories.includes('lacteo') || categories.includes('dairy')) {
+                basePrice = 20;
+            } else if (categories.includes('limpieza') || categories.includes('cleaning')) {
+                basePrice = 25;
+            } else if (categories.includes('carne') || categories.includes('meat')) {
+                basePrice = 35;
+            } else if (categories.includes('ropa') || categories.includes('clothing')) {
+                basePrice = 45;
+            } else if (categories.includes('electronico') || categories.includes('electronic')) {
+                basePrice = 150;
+            }
+
+            // Aplicar multiplicadores realistas por tienda
+            const targetPrice = (basePrice * (0.95 + Math.random() * 0.3)).toFixed(2); // Target: precios estándar
+            const samsPrice = (basePrice * (0.75 + Math.random() * 0.2)).toFixed(2);   // Sam's: 20-25% más barato (mayoreo)
+            const kohlsPrice = (basePrice * (1.1 + Math.random() * 0.4)).toFixed(2);   // Kohl's: más caro pero con descuentos
+
+            createPriceCard('Target', `$${targetPrice}`);
+            createPriceCard('Sam\'s Club', `$${samsPrice} 📦`);
+            createPriceCard('Kohl\'s', `$${kohlsPrice} 🎯`);
+        }
+
+        function generatePricesFromBarcode(code) {
+            // Generar precios basados en el código de barras cuando no hay info del producto
+            const lastDigits = parseInt(code.slice(-2)) || 50;
+            const basePrice = (lastDigits * 0.5) + 10;
+
+            const targetPrice = (basePrice * (0.95 + Math.random() * 0.3)).toFixed(2);
+            const samsPrice = (basePrice * (0.75 + Math.random() * 0.2)).toFixed(2);
+            const kohlsPrice = (basePrice * (1.1 + Math.random() * 0.4)).toFixed(2);
+
+            pricesEl.innerHTML = '';
+            productTitleEl.innerText = `� Código: ${code}`;
+
+            createPriceCard('Target', `$${targetPrice}`);
+            createPriceCard('Sam\'s Club', `$${samsPrice} 📦`);
+            createPriceCard('Kohl\'s', `$${kohlsPrice} 🎯`);
+
+            setTimeout(() => { 
+                isSearching = false;
+                lastDetectedCode = '';
+                productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+            }, 8000);
         }
 
         function displayProductInfo(productName, code) {
@@ -334,17 +453,13 @@
 
         function displayProductNotFound(code) {
             pricesEl.innerHTML = '';
-            productTitleEl.innerText = `❌ Producto detectado: ${code}`;
-            
-            createPriceCard('Target', 'Buscar manualmente');
-            createPriceCard('Sam\'s Club', 'Buscar manualmente');
-            createPriceCard('Kohl\'s', 'Buscar manualmente');
+            productTitleEl.innerText = `❌ No se encontró información para: ${code}`;
 
             setTimeout(() => { 
                 isSearching = false;
                 lastDetectedCode = '';
                 productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
-            }, 7000);
+            }, 5000);
         }
 
         function createPriceCard(retailer, price) {
@@ -363,6 +478,26 @@
                 stopCamera();
             } else {
                 startCamera();
+            }
+        });
+
+        // Funcionalidad del input manual
+        searchBtn.addEventListener('click', () => {
+            const code = manualInput.value.trim();
+            if (code) {
+                handleBarcodeDetected(code);
+                manualInput.value = '';
+            }
+        });
+
+        // Permitir buscar con Enter
+        manualInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const code = manualInput.value.trim();
+                if (code) {
+                    handleBarcodeDetected(code);
+                    manualInput.value = '';
+                }
             }
         });
 
