@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de Precios por Código de Barras</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+        #scanner-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            display: block; /* Asegurarse que es visible al inicio */
+        }
+        video, #interactive.viewport {
+            width: 100%;
+            height: auto;
+        }
+        .drawingBuffer {
+            display: none;
+        }
+        #result-container {
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+        .price-card {
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin: 15px 0;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: transform 0.2s;
+        }
+        .price-card:hover {
+            transform: translateY(-5px);
+        }
+        .price-card .retailer {
+            font-weight: 700;
+            font-size: 1.2em;
+            color: #3498db;
+        }
+        .price-card .price {
+            font-size: 1.5em;
+            font-weight: 300;
+            color: #2ecc71;
+        }
+        .price-card .price.searching {
+            color: #f39c12; /* Color naranja para "Buscando..." */
+        }
+        #product-info {
+            margin-bottom: 20px;
+        }
+        #product-title {
+            font-size: 1.4em;
+            font-weight: 700;
+            color: #333;
+        }
+        #camera-toggle-btn {
+            margin-top: 20px;
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #fff;
+            background-color: #e74c3c;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        #camera-toggle-btn:hover {
+            background-color: #c0392b;
+        }
+        #camera-toggle-btn.on {
+            background-color: #2ecc71; /* Verde cuando la acción es prender */
+        }
+        #camera-toggle-btn.on:hover {
+            background-color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+    <h1>Escanea un Código de Barras</h1>
+    <div id="scanner-container">
+        <div id="interactive" class="viewport"></div>
+    </div>
+    <div id="result-container">
+        <div id="product-info">
+            <p id="product-title">Apunta la cámara a un código de barras</p>
+        </div>
+        <div id="prices"></div>
+    </div>
+    <button id="camera-toggle-btn">Apagar Cámara</button>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script>
+        let isSearching = false;
+        let isCameraOn = false;
+        const scannerContainer = document.getElementById('scanner-container');
+        const productTitleEl = document.getElementById('product-title');
+        const pricesEl = document.getElementById('prices');
+        const cameraBtn = document.getElementById('camera-toggle-btn');
+
+        function startCamera() {
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: scannerContainer,
+                    constraints: {
+                        width: 640,
+                        height: 480,
+                        facingMode: "environment"
+                    },
+                },
+                locator: {
+                    patchSize: "medium",
+                    halfSample: true
+                },
+                numOfWorkers: navigator.hardwareConcurrency || 4,
+                decoder: {
+                    readers: ["upc_reader", "ean_reader"]
+                },
+                locate: true
+            }, function(err) {
+                if (err) {
+                    console.log(err);
+                    productTitleEl.innerText = 'Error: No se pudo iniciar la cámara. Asegúrate de dar permiso.';
+                    return;
+                }
+                console.log("Initialization finished. Ready to start");
+                Quagga.start();
+                isCameraOn = true;
+                scannerContainer.style.display = 'block';
+                cameraBtn.textContent = 'Apagar Cámara';
+                cameraBtn.classList.remove('on');
+                productTitleEl.innerText = 'Apunta la cámara a un código de barras';
+            });
+        }
+
+        function stopCamera() {
+            Quagga.stop();
+            isCameraOn = false;
+            scannerContainer.style.display = 'none';
+            cameraBtn.textContent = 'Prender Cámara';
+            cameraBtn.classList.add('on');
+            productTitleEl.innerText = 'Cámara apagada. Presiona "Prender Cámara" para continuar.';
+        }
+
+        Quagga.onDetected(function(result) {
+            if (isSearching) {
+                return;
+            }
+            
+            const code = result.codeResult.code;
+            isSearching = true; 
+
+            productTitleEl.innerText = `Buscando: ${code}...`;
+            pricesEl.innerHTML = '';
+
+            createPriceCard('Target', 'Buscando...');
+            createPriceCard('Sam\'s Club', 'Buscando...');
+            createPriceCard('Kohl\'s', 'Buscando...');
+
+            const apiUrl = `https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`;
+            
+            // *** INICIO DE LA CORRECCIÓN DEL HEADER ***
+            fetch(`https://cors-anywhere.herokuapp.com/${apiUrl}`, {
+                headers: {
+                    // Añadimos la cabecera que exige el proxy
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('La respuesta de la red no fue correcta.');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    pricesEl.innerHTML = ''; 
+                    if (data.items && data.items.length > 0) {
+                        const item = data.items[0];
+                        productTitleEl.innerText = item.title || 'Producto sin título';
+                        
+                        const price = item.offers && item.offers.length > 0 ? `$${item.offers[0].price}` : 'No disponible';
+                        createPriceCard('Target', price);
+                        createPriceCard('Sam\'s Club', 'No disponible');
+                        createPriceCard('Kohl\'s', 'No disponible');
+
+                    } else {
+                        productTitleEl.innerText = `No se encontró información para: ${code}`;
+                        createPriceCard('Target', 'No encontrado');
+                        createPriceCard('Sam\'s Club', 'No encontrado');
+                        createPriceCard('Kohl\'s', 'No encontrado');
+                    }
+                })
+                .catch(err => {
+                    console.error("Error al buscar:", err);
+                    productTitleEl.innerText = 'Error al buscar la información.';
+                    pricesEl.innerHTML = '';
+                })
+                .finally(() => {
+                    setTimeout(() => { 
+                        isSearching = false; 
+                        productTitleEl.innerText = 'Apunta la cámara a un código de barras';
+                    }, 3000); 
+                });
+            // *** FIN DE LA CORRECCIÓN DEL HEADER ***
+        });
+
+        function createPriceCard(retailer, price) {
+            const card = document.createElement('div');
+            card.className = 'price-card';
+            const priceClass = price === 'Buscando...' ? 'price searching' : 'price';
+            card.innerHTML = `
+                <span class="retailer">${retailer}</span>
+                <span class="${priceClass}">${price}</span>
+            `;
+            pricesEl.appendChild(card);
+        }
+
+        cameraBtn.addEventListener('click', () => {
+            if (isCameraOn) {
+                stopCamera();
+            } else {
+                startCamera();
+            }
+        });
+
+        startCamera();
+    </script>
+</body>
+</html>
