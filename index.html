@@ -28,11 +28,55 @@
             overflow: hidden;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             margin-bottom: 20px;
-            display: block; /* Asegurarse que es visible al inicio */
+            display: block;
+            border: 3px solid #3498db;
+        }
+        
+        #scanner-container canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        
+        .scanner-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 150px;
+            border: 2px solid #e74c3c;
+            border-radius: 10px;
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
+            z-index: 10;
+        }
+        
+        .scanner-overlay::before {
+            content: '';
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            right: -2px;
+            bottom: -2px;
+            border: 2px solid #e74c3c;
+            border-radius: 10px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
         video, #interactive.viewport {
             width: 100%;
             height: auto;
+        }
+        
+        #video {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
         }
         .drawingBuffer {
             display: none;
@@ -102,80 +146,115 @@
 <body>
     <h1>Escanea un Código de Barras</h1>
     <div id="scanner-container">
-        <div id="interactive" class="viewport"></div>
+        <video id="video" autoplay muted playsinline></video>
+        <div class="scanner-overlay"></div>
+        <canvas id="canvas" style="display: none;"></canvas>
     </div>
     <div id="result-container">
         <div id="product-info">
-            <p id="product-title">Apunta la cámara a un código de barras</p>
+            <p id="product-title">📱 Apunta la cámara a un código de barras</p>
         </div>
         <div id="prices"></div>
     </div>
     <button id="camera-toggle-btn">Apagar Cámara</button>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
     <script>
         let isSearching = false;
         let isCameraOn = false;
+        let lastDetectedCode = '';
+        let codeReader = null;
+        let videoElement = null;
+        let canvasElement = null;
+        let scanning = false;
+        
         const scannerContainer = document.getElementById('scanner-container');
         const productTitleEl = document.getElementById('product-title');
         const pricesEl = document.getElementById('prices');
         const cameraBtn = document.getElementById('camera-toggle-btn');
 
-        function startCamera() {
-            Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: scannerContainer,
-                    constraints: {
-                        width: 640,
-                        height: 480,
-                        facingMode: "environment"
-                    },
-                },
-                locator: {
-                    patchSize: "medium",
-                    halfSample: true
-                },
-                numOfWorkers: navigator.hardwareConcurrency || 4,
-                decoder: {
-                    readers: ["upc_reader", "ean_reader"]
-                },
-                locate: true
-            }, function(err) {
-                if (err) {
-                    console.log(err);
-                    productTitleEl.innerText = 'Error: No se pudo iniciar la cámara. Asegúrate de dar permiso.';
-                    return;
+        function initializeScanner() {
+            // Inicializar ZXing con todos los formatos de códigos de barras
+            codeReader = new ZXing.BrowserMultiFormatReader();
+            videoElement = document.getElementById('video');
+            canvasElement = document.getElementById('canvas');
+            
+            console.log('ZXing inicializado correctamente');
+        }
+
+        async function startCamera() {
+            try {
+                if (!codeReader) {
+                    initializeScanner();
                 }
-                console.log("Initialization finished. Ready to start");
-                Quagga.start();
+
+                // Obtener dispositivos de video usando la API correcta de ZXing
+                const videoInputDevices = await codeReader.listVideoInputDevices();
+                console.log('Cámaras encontradas:', videoInputDevices);
+
+                // Buscar cámara trasera
+                let selectedDeviceId = videoInputDevices[0]?.deviceId;
+                
+                // Intentar encontrar cámara trasera
+                const backCamera = videoInputDevices.find(device => 
+                    device.label.toLowerCase().includes('back') || 
+                    device.label.toLowerCase().includes('rear') ||
+                    device.label.toLowerCase().includes('environment')
+                );
+                
+                if (backCamera) {
+                    selectedDeviceId = backCamera.deviceId;
+                }
+
+                // Usar el método de ZXing para iniciar la cámara directamente
+                await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
+                    if (result && !isSearching) {
+                        handleBarcodeDetected(result.getText());
+                    }
+                    if (err && !(err instanceof ZXing.NotFoundException)) {
+                        console.error('Error de escaneo:', err);
+                    }
+                });
+
                 isCameraOn = true;
+                scanning = true;
                 scannerContainer.style.display = 'block';
                 cameraBtn.textContent = 'Apagar Cámara';
                 cameraBtn.classList.remove('on');
-                productTitleEl.innerText = 'Apunta la cámara a un código de barras';
-            });
+                productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+
+            } catch (err) {
+                console.error('Error al iniciar cámara:', err);
+                productTitleEl.innerText = '❌ Error: No se pudo acceder a la cámara. Verifica los permisos.';
+            }
         }
 
         function stopCamera() {
-            Quagga.stop();
+            scanning = false;
             isCameraOn = false;
+            
+            // Detener ZXing reader
+            if (codeReader) {
+                codeReader.reset();
+            }
+
             scannerContainer.style.display = 'none';
             cameraBtn.textContent = 'Prender Cámara';
             cameraBtn.classList.add('on');
-            productTitleEl.innerText = 'Cámara apagada. Presiona "Prender Cámara" para continuar.';
+            productTitleEl.innerText = '📷 Cámara apagada. Presiona "Prender Cámara" para continuar.';
+            lastDetectedCode = '';
         }
 
-        Quagga.onDetected(function(result) {
-            if (isSearching) {
+        function handleBarcodeDetected(code) {
+            if (isSearching || lastDetectedCode === code) {
                 return;
             }
-            
-            const code = result.codeResult.code;
-            isSearching = true; 
 
-            productTitleEl.innerText = `Buscando: ${code}...`;
+            console.log('Código detectado:', code);
+            lastDetectedCode = code;
+            isSearching = true;
+
+            productTitleEl.innerText = `🔍 Buscando: ${code}...`;
             pricesEl.innerHTML = '';
 
             createPriceCard('Target', 'Buscando...');
@@ -184,10 +263,8 @@
 
             const apiUrl = `https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`;
             
-            // *** INICIO DE LA CORRECCIÓN DEL HEADER ***
             fetch(`https://cors-anywhere.herokuapp.com/${apiUrl}`, {
                 headers: {
-                    // Añadimos la cabecera que exige el proxy
                     'X-Requested-With': 'XMLHttpRequest'
                 }
             })
@@ -201,7 +278,7 @@
                     pricesEl.innerHTML = ''; 
                     if (data.items && data.items.length > 0) {
                         const item = data.items[0];
-                        productTitleEl.innerText = item.title || 'Producto sin título';
+                        productTitleEl.innerText = `✅ ${item.title || 'Producto encontrado'}`;
                         
                         const price = item.offers && item.offers.length > 0 ? `$${item.offers[0].price}` : 'No disponible';
                         createPriceCard('Target', price);
@@ -209,7 +286,7 @@
                         createPriceCard('Kohl\'s', 'No disponible');
 
                     } else {
-                        productTitleEl.innerText = `No se encontró información para: ${code}`;
+                        productTitleEl.innerText = `❌ No se encontró información para: ${code}`;
                         createPriceCard('Target', 'No encontrado');
                         createPriceCard('Sam\'s Club', 'No encontrado');
                         createPriceCard('Kohl\'s', 'No encontrado');
@@ -217,17 +294,17 @@
                 })
                 .catch(err => {
                     console.error("Error al buscar:", err);
-                    productTitleEl.innerText = 'Error al buscar la información.';
+                    productTitleEl.innerText = '⚠️ Error al buscar la información.';
                     pricesEl.innerHTML = '';
                 })
                 .finally(() => {
                     setTimeout(() => { 
-                        isSearching = false; 
-                        productTitleEl.innerText = 'Apunta la cámara a un código de barras';
-                    }, 3000); 
+                        isSearching = false;
+                        lastDetectedCode = '';
+                        productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+                    }, 5000); 
                 });
-            // *** FIN DE LA CORRECCIÓN DEL HEADER ***
-        });
+        }
 
         function createPriceCard(retailer, price) {
             const card = document.createElement('div');
@@ -248,7 +325,11 @@
             }
         });
 
-        startCamera();
+        // Inicializar cuando la página carga
+        window.addEventListener('load', () => {
+            initializeScanner();
+            startCamera();
+        });
     </script>
 </body>
 </html>
