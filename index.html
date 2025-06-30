@@ -279,10 +279,15 @@
 
         async function searchMultipleAPIs(code) {
             try {
-                // Solo UPCItemDB
-                const upcResponse = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`);
+                // Usar un proxy CORS para UPCItemDB
+                const proxyUrl = 'https://api.allorigins.win/get?url=';
+                const targetUrl = `https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`;
+                const upcResponse = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+                
                 if (upcResponse.ok) {
-                    const upcData = await upcResponse.json();
+                    const proxyData = await upcResponse.json();
+                    const upcData = JSON.parse(proxyData.contents);
+                    
                     if (upcData.items && upcData.items.length > 0) {
                         const item = upcData.items[0];
                         displayUPCItemData(item, code);
