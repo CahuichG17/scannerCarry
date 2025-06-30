@@ -196,13 +196,25 @@
 
         async function startCamera() {
             try {
+                console.log('Intentando iniciar cámara...');
+                
                 if (!codeReader) {
                     initializeScanner();
                 }
 
+                // Verificar si el navegador soporta getUserMedia
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Tu navegador no soporta acceso a cámara');
+                }
+
                 // Obtener dispositivos de video usando la API correcta de ZXing
+                console.log('Obteniendo dispositivos de video...');
                 const videoInputDevices = await codeReader.listVideoInputDevices();
                 console.log('Cámaras encontradas:', videoInputDevices);
+
+                if (videoInputDevices.length === 0) {
+                    throw new Error('No se encontraron cámaras disponibles');
+                }
 
                 // Buscar cámara trasera
                 let selectedDeviceId = videoInputDevices[0]?.deviceId;
@@ -216,11 +228,16 @@
                 
                 if (backCamera) {
                     selectedDeviceId = backCamera.deviceId;
+                    console.log('Usando cámara trasera:', backCamera.label);
+                } else {
+                    console.log('Usando primera cámara disponible:', videoInputDevices[0].label);
                 }
 
                 // Usar el método de ZXing para iniciar la cámara directamente
+                console.log('Iniciando decodificación...');
                 await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, (result, err) => {
                     if (result && !isSearching) {
+                        console.log('Código detectado por ZXing:', result.getText());
                         handleBarcodeDetected(result.getText());
                     }
                     if (err && !(err instanceof ZXing.NotFoundException)) {
@@ -234,10 +251,21 @@
                 cameraBtn.textContent = 'Apagar Cámara';
                 cameraBtn.classList.remove('on');
                 productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
+                
+                console.log('Cámara iniciada correctamente');
 
             } catch (err) {
                 console.error('Error al iniciar cámara:', err);
-                productTitleEl.innerText = '❌ Error: No se pudo acceder a la cámara. Verifica los permisos.';
+                productTitleEl.innerText = `❌ Error: ${err.message}`;
+                
+                // Mostrar información específica del error
+                if (err.name === 'NotAllowedError') {
+                    productTitleEl.innerText = '❌ Permiso de cámara denegado. Ve a configuración del navegador.';
+                } else if (err.name === 'NotFoundError') {
+                    productTitleEl.innerText = '❌ No se encontró cámara disponible.';
+                } else if (err.name === 'NotReadableError') {
+                    productTitleEl.innerText = '❌ Cámara en uso por otra aplicación.';
+                }
             }
         }
 
@@ -259,43 +287,77 @@
 
         function handleBarcodeDetected(code) {
             if (isSearching || lastDetectedCode === code) {
+                console.log('Código ya detectado o búsqueda en progreso');
                 return;
             }
 
-            console.log('Código detectado:', code);
+            console.log('Procesando código detectado:', code);
             lastDetectedCode = code;
             isSearching = true;
 
             productTitleEl.innerText = `🔍 Buscando: ${code}...`;
             pricesEl.innerHTML = '';
 
-            createPriceCard('Target', 'Buscando...');
-            createPriceCard('Sam\'s Club', 'Buscando...');
-            createPriceCard('Kohl\'s', 'Buscando...');
+            createPriceCard('Buscando...', '⏳');
 
             // Usar múltiples APIs para mayor confiabilidad
             searchMultipleAPIs(code);
         }
 
         async function searchMultipleAPIs(code) {
+            console.log('Buscando código:', code);
+            productTitleEl.innerText = `🔍 Buscando: ${code}...`;
+            
             try {
+                // Mostrar estado de búsqueda
+                console.log('Intentando conectar con UPCItemDB...');
+                
                 // Usar un proxy CORS para UPCItemDB
                 const proxyUrl = 'https://api.allorigins.win/get?url=';
                 const targetUrl = `https://api.upcitemdb.com/prod/trial/lookup?upc=${code}`;
-                const upcResponse = await fetch(proxyUrl + encodeURIComponent(targetUrl));
+                const fullUrl = proxyUrl + encodeURIComponent(targetUrl);
+                
+                console.log('URL completa:', fullUrl);
+                
+                const upcResponse = await fetch(fullUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                console.log('Response status:', upcResponse.status);
                 
                 if (upcResponse.ok) {
                     const proxyData = await upcResponse.json();
-                    const upcData = JSON.parse(proxyData.contents);
+                    console.log('Proxy data:', proxyData);
                     
-                    if (upcData.items && upcData.items.length > 0) {
-                        const item = upcData.items[0];
-                        displayUPCItemData(item, code);
-                        return;
+                    if (proxyData.contents) {
+                        const upcData = JSON.parse(proxyData.contents);
+                        console.log('UPC data:', upcData);
+                        
+                        if (upcData.items && upcData.items.length > 0) {
+                            const item = upcData.items[0];
+                            console.log('Producto encontrado:', item);
+                            displayUPCItemData(item, code);
+                            return;
+                        } else {
+                            console.log('No se encontraron items en la respuesta');
+                        }
+                    } else {
+                        console.log('No hay contenido en la respuesta del proxy');
                     }
+                } else {
+                    console.log('Error en la respuesta:', upcResponse.status, upcResponse.statusText);
                 }
             } catch (err) {
-                console.log('Error con UPCItemDB:', err);
+                console.error('Error completo:', err);
+                productTitleEl.innerText = `❌ Error de conexión: ${err.message}`;
+                
+                // Mostrar error en pantalla para debugging
+                setTimeout(() => {
+                    productTitleEl.innerText = '⚠️ Error de red. Verifica tu conexión a internet.';
+                }, 2000);
             }
 
             // Si no encuentra el producto, mostrar solo el código
