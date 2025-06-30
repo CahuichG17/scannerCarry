@@ -92,9 +92,6 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.05);
             margin: 15px 0;
             padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
             transition: transform 0.2s;
         }
         .price-card:hover {
@@ -104,14 +101,119 @@
             font-weight: 700;
             font-size: 1.2em;
             color: #3498db;
+            margin-bottom: 10px;
+        }
+        .price-card .price-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
         }
         .price-card .price {
-            font-size: 1.5em;
+            font-size: 1.3em;
             font-weight: 300;
             color: #2ecc71;
+            text-decoration: none;
+        }
+        .price-card .price:hover {
+            text-decoration: underline;
+        }
+        .price-card .price-peso {
+            font-size: 1.1em;
+            color: #f39c12;
+            margin-left: 10px;
         }
         .price-card .price.searching {
-            color: #f39c12; /* Color naranja para "Buscando..." */
+            color: #f39c12;
+        }
+        .price-source-table {
+            background-color: #e8f5e8;
+            border-radius: 5px;
+            padding: 12px;
+            margin: 15px 0;
+            font-size: 0.9em;
+            border-left: 4px solid #27ae60;
+        }
+        .price-source-table h4 {
+            margin: 0 0 10px 0;
+            color: #27ae60;
+            font-size: 1em;
+        }
+        .source-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 3px 0;
+            border-bottom: 1px solid #d5f5d5;
+        }
+        .source-row:last-child {
+            border-bottom: none;
+        }
+        .source-row.base-price {
+            background-color: #fff3cd;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ffeaa7;
+            margin: 8px 0;
+        }
+        .source-row.discount-price {
+            background-color: #d4edda;
+            color: #155724;
+            padding: 5px 8px;
+            border-radius: 3px;
+            border-left: 3px solid #28a745;
+        }
+        .source-row.premium-price {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 5px 8px;
+            border-radius: 3px;
+            border-left: 3px solid #dc3545;
+        }
+        .discount-table {
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            padding: 10px;
+            margin-top: 15px;
+            font-size: 0.9em;
+        }
+        .discount-table h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .discount-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            align-items: center;
+        }
+        .discount-row.original-price {
+            background-color: #e8f5e8;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #27ae60;
+            margin: 8px 0;
+        }
+        .discount-info {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .discount-label {
+            font-weight: 600;
+            color: #e74c3c;
+            font-size: 1em;
+        }
+        .savings-info {
+            font-size: 0.8em;
+            color: #27ae60;
+            font-style: italic;
+            margin-top: 2px;
+        }
+        .final-price {
+            font-weight: 600;
+            color: #2ecc71;
+            font-size: 1.1em;
         }
         #product-info {
             margin-bottom: 20px;
@@ -145,6 +247,14 @@
 </head>
 <body>
     <h1>Escanea un Código de Barras</h1>
+    
+    <!-- Convertidor de divisas -->
+    <div style="background-color: #ecf0f1; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+        <label for="exchange-rate" style="font-weight: bold; margin-right: 10px;">Tipo de cambio (pesos por dólar):</label>
+        <input type="number" id="exchange-rate" value="20" min="1" max="100" step="0.1" 
+               style="padding: 5px; font-size: 14px; border: 1px solid #bdc3c7; border-radius: 4px; width: 80px; margin-right: 10px;">
+        <span style="color: #7f8c8d;">MXN por USD</span>
+    </div>
     
     <!-- Input manual para código de barras -->
     <div style="margin-bottom: 20px;">
@@ -184,6 +294,161 @@
         const cameraBtn = document.getElementById('camera-toggle-btn');
         const manualInput = document.getElementById('manual-barcode');
         const searchBtn = document.getElementById('search-manual-btn');
+        const exchangeRateInput = document.getElementById('exchange-rate');
+
+        function getExchangeRate() {
+            return parseFloat(exchangeRateInput.value) || 20;
+        }
+
+        function convertToPesos(dollarAmount) {
+            const rate = getExchangeRate();
+            return (dollarAmount * rate).toFixed(2);
+        }
+
+        function generatePriceSourceTable(offers, lowestPrice, highestPrice, basePrice) {
+            let tableHtml = '<div class="price-source-table">';
+            tableHtml += '<h4>📋 Precios Reales vs Precio Base</h4>';
+            
+            // Determinar precio base si no se proporciona
+            let actualBasePrice = basePrice;
+            if (!actualBasePrice) {
+                if (offers && offers.length > 0 && offers[0].price) {
+                    actualBasePrice = offers[0].price;
+                } else if (lowestPrice) {
+                    actualBasePrice = lowestPrice;
+                }
+            }
+            
+            if (!actualBasePrice) {
+                tableHtml += '<div class="source-row"><span>No hay precios disponibles</span></div>';
+                tableHtml += '</div>';
+                return tableHtml;
+            }
+            
+            // Mostrar precio base usado para cálculos
+            const pesosPriceBase = convertToPesos(actualBasePrice);
+            tableHtml += `<div class="source-row base-price">
+                <span><strong>🎯 Precio Base (para descuentos):</strong></span>
+                <span><strong>$${actualBasePrice} USD (${pesosPriceBase} MXN)</strong></span>
+            </div>`;
+            
+            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
+            
+            // Mostrar precios de ofertas con su descuento respecto al precio base
+            if (offers && offers.length > 0) {
+                tableHtml += '<div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 5px;">📊 Comparación con precios de tiendas:</div>';
+                offers.forEach(offer => {
+                    if (offer.price) {
+                        const pesosPrice = convertToPesos(offer.price);
+                        const discountPercent = ((actualBasePrice - offer.price) / actualBasePrice * 100).toFixed(1);
+                        const isDiscount = offer.price < actualBasePrice;
+                        const isPremium = offer.price > actualBasePrice;
+                        
+                        let priceClass = 'source-row';
+                        let icon = '🛒';
+                        let discountText = '';
+                        
+                        if (isDiscount) {
+                            priceClass += ' discount-price';
+                            icon = '🔥';
+                            discountText = ` (${discountPercent}% descuento)`;
+                        } else if (isPremium) {
+                            const premiumPercent = ((offer.price - actualBasePrice) / actualBasePrice * 100).toFixed(1);
+                            priceClass += ' premium-price';
+                            icon = '💎';
+                            discountText = ` (+${premiumPercent}% premium)`;
+                        } else {
+                            discountText = ' (mismo precio)';
+                        }
+                        
+                        tableHtml += `<div class="${priceClass}">
+                            <span>${icon} ${offer.merchant}${discountText}:</span>
+                            <span>$${offer.price} USD (${pesosPrice} MXN)</span>
+                        </div>`;
+                    }
+                });
+            }
+            
+            // Mostrar precios registrados con su comparación
+            if (lowestPrice || highestPrice) {
+                tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
+                tableHtml += '<div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 5px;">📈 Rangos de precios históricos:</div>';
+                
+                if (lowestPrice) {
+                    const pesosLow = convertToPesos(lowestPrice);
+                    const discountPercent = ((actualBasePrice - lowestPrice) / actualBasePrice * 100).toFixed(1);
+                    const isDiscount = lowestPrice < actualBasePrice;
+                    
+                    let discountText = isDiscount ? ` (${discountPercent}% por debajo del base)` : 
+                                     lowestPrice > actualBasePrice ? ` (+${((lowestPrice - actualBasePrice) / actualBasePrice * 100).toFixed(1)}% por encima del base)` : 
+                                     ' (igual al precio base)';
+                    
+                    tableHtml += `<div class="source-row ${isDiscount ? 'discount-price' : ''}">
+                        <span>📉 Precio Mínimo Registrado${discountText}:</span>
+                        <span>$${lowestPrice} USD (${pesosLow} MXN)</span>
+                    </div>`;
+                }
+                
+                if (highestPrice && highestPrice !== lowestPrice) {
+                    const pesosHigh = convertToPesos(highestPrice);
+                    const premiumPercent = ((highestPrice - actualBasePrice) / actualBasePrice * 100).toFixed(1);
+                    const isPremium = highestPrice > actualBasePrice;
+                    
+                    let priceText = isPremium ? ` (+${premiumPercent}% por encima del base)` : 
+                                  highestPrice < actualBasePrice ? ` (${((actualBasePrice - highestPrice) / actualBasePrice * 100).toFixed(1)}% por debajo del base)` : 
+                                  ' (igual al precio base)';
+                    
+                    tableHtml += `<div class="source-row ${isPremium ? 'premium-price' : ''}">
+                        <span>📈 Precio Máximo Registrado${priceText}:</span>
+                        <span>$${highestPrice} USD (${pesosHigh} MXN)</span>
+                    </div>`;
+                }
+            }
+            
+            tableHtml += '<div style="margin-top: 12px; font-size: 0.85em; color: #7f8c8d; font-style: italic; background: #f8f9fa; padding: 8px; border-radius: 4px;">';
+            tableHtml += '💡 <strong>Nota:</strong> La tabla de descuentos de abajo se calcula usando el precio base mostrado arriba. ';
+            tableHtml += 'Los porcentajes mostrados aquí indican cuánto descuento/premium tiene cada tienda respecto a ese precio base.';
+            tableHtml += '</div>';
+            
+            tableHtml += '</div>';
+            return tableHtml;
+        }
+
+        function generateDiscountTable(originalPrice) {
+            const price = parseFloat(originalPrice);
+            const rate = getExchangeRate();
+            
+            let tableHtml = '<div class="discount-table">';
+            tableHtml += '<h4>💰 Tabla de Descuentos</h4>';
+            
+            // Mostrar precio base original
+            const originalPesosPrice = (price * rate).toFixed(2);
+            tableHtml += `<div class="discount-row original-price">
+                <span><strong>💵 Precio Base:</strong></span>
+                <span><strong>$${originalPesosPrice} MXN</strong></span>
+            </div>`;
+            
+            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
+            
+            const discounts = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
+            
+            discounts.forEach(discount => {
+                const discountedPrice = price * (1 - discount / 100);
+                const pesosPrice = (discountedPrice * rate).toFixed(2);
+                const savings = (originalPesosPrice - pesosPrice).toFixed(2);
+                
+                tableHtml += `<div class="discount-row">
+                    <div class="discount-info">
+                        <span class="discount-label">${discount}% OFF:</span>
+                        <span class="savings-info">Ahorras $${savings} MXN</span>
+                    </div>
+                    <span class="final-price">$${pesosPrice} MXN</span>
+                </div>`;
+            });
+            
+            tableHtml += '</div>';
+            return tableHtml;
+        }
 
         function initializeScanner() {
             // Inicializar ZXing con todos los formatos de códigos de barras
@@ -376,20 +641,60 @@
             
             productTitleEl.innerText = displayTitle;
             
-            // SOLO mostrar precios reales de las ofertas, SIN simular nada
+            let basePrice = null;
+            
+            // Mostrar precios reales de las ofertas
             if (item.offers && item.offers.length > 0) {
                 item.offers.forEach(offer => {
                     const merchant = offer.merchant;
                     const price = offer.price;
+                    const listPrice = offer.list_price;
+                    const link = offer.link;
                     
                     if (price && merchant) {
-                        createPriceCard(merchant, `$${price}`);
+                        createAdvancedPriceCard(merchant, price, listPrice, link);
+                        if (!basePrice) basePrice = price; // Usar el primer precio como base
                     }
                 });
+                
+                // Agregar tabla de precios fuente
+                const priceSourceTable = generatePriceSourceTable(item.offers, item.lowest_recorded_price, item.highest_recorded_price, basePrice);
+                pricesEl.innerHTML += priceSourceTable;
+                
+                // Agregar tabla de descuentos basada en el primer precio
+                if (basePrice) {
+                    const discountTable = generateDiscountTable(basePrice);
+                    pricesEl.innerHTML += discountTable;
+                }
             }
 
-            // Si no hay ofertas, no mostrar precios
-            if (!item.offers || item.offers.length === 0) {
+            // Si no hay ofertas, mostrar precios registrados si existen
+            else if (item.lowest_recorded_price || item.highest_recorded_price) {
+                const lowPrice = item.lowest_recorded_price;
+                const highPrice = item.highest_recorded_price;
+                
+                if (lowPrice) {
+                    createAdvancedPriceCard('Precio Mínimo Registrado', lowPrice, null, null);
+                    basePrice = lowPrice;
+                }
+                if (highPrice && highPrice !== lowPrice) {
+                    createAdvancedPriceCard('Precio Máximo Registrado', highPrice, null, null);
+                }
+                
+                // Agregar tabla de precios fuente
+                const avgPrice = highPrice && lowPrice ? (lowPrice + highPrice) / 2 : lowPrice;
+                const priceSourceTable = generatePriceSourceTable(null, lowPrice, highPrice, avgPrice);
+                pricesEl.innerHTML += priceSourceTable;
+                
+                // Tabla de descuentos basada en precio promedio o mínimo
+                if (avgPrice) {
+                    const discountTable = generateDiscountTable(avgPrice);
+                    pricesEl.innerHTML += discountTable;
+                }
+            }
+
+            // Si no hay ofertas ni precios registrados
+            else {
                 productTitleEl.innerText += ' (Sin precios disponibles)';
             }
 
@@ -397,7 +702,7 @@
                 isSearching = false;
                 lastDetectedCode = '';
                 productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
-            }, 8000);
+            }, 15000); // Más tiempo para ver toda la información
         }
 
         function displayRealProductData(product, code) {
@@ -540,6 +845,59 @@
             pricesEl.appendChild(card);
         }
 
+        function createAdvancedPriceCard(merchant, salePrice, listPrice, link) {
+            const card = document.createElement('div');
+            card.className = 'price-card';
+            
+            const salePricePesos = convertToPesos(salePrice);
+            let listPricePesos = '';
+            
+            let priceHtml = '';
+            
+            // Si hay precio regular (list_price)
+            if (listPrice && listPrice > salePrice) {
+                listPricePesos = convertToPesos(listPrice);
+                const discount = Math.round(((listPrice - salePrice) / listPrice) * 100);
+                
+                priceHtml = `
+                    <div class="price-info">
+                        <div>
+                            <div style="text-decoration: line-through; color: #95a5a6; font-size: 0.9em;">
+                                Precio regular: $${listPrice} USD (${listPricePesos} MXN)
+                            </div>
+                            ${link ? `<a href="${link}" target="_blank" class="price">` : '<span class="price">'}
+                                $${salePrice} USD
+                            ${link ? '</a>' : '</span>'}
+                            <span class="price-peso">(${salePricePesos} MXN)</span>
+                            <div style="color: #e74c3c; font-weight: bold; font-size: 0.9em;">
+                                ¡${discount}% de descuento!
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } 
+            // Solo precio de venta
+            else {
+                priceHtml = `
+                    <div class="price-info">
+                        <div>
+                            ${link ? `<a href="${link}" target="_blank" class="price">` : '<span class="price">'}
+                                $${salePrice} USD
+                            ${link ? '</a>' : '</span>'}
+                            <span class="price-peso">(${salePricePesos} MXN)</span>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            card.innerHTML = `
+                <div class="retailer">${merchant}</div>
+                ${priceHtml}
+            `;
+            
+            pricesEl.appendChild(card);
+        }
+
         cameraBtn.addEventListener('click', () => {
             if (isCameraOn) {
                 stopCamera();
@@ -564,6 +922,24 @@
                 if (code) {
                     handleBarcodeDetected(code);
                     manualInput.value = '';
+                }
+            }
+        });
+
+        // Actualizar precios cuando cambie el tipo de cambio
+        exchangeRateInput.addEventListener('input', () => {
+            // Solo actualizar si hay precios mostrados
+            const priceCards = document.querySelectorAll('.price-peso');
+            if (priceCards.length > 0) {
+                // Re-procesar el último código detectado si existe
+                if (lastDetectedCode && !isSearching) {
+                    // Pequeño delay para evitar múltiples actualizaciones
+                    clearTimeout(window.exchangeUpdateTimeout);
+                    window.exchangeUpdateTimeout = setTimeout(() => {
+                        const tempCode = lastDetectedCode;
+                        lastDetectedCode = ''; // Reset para permitir re-búsqueda
+                        handleBarcodeDetected(tempCode);
+                    }, 500);
                 }
             }
         });
