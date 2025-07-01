@@ -1,66 +1,43 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comparador de Precios por Código de Barras</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.12.10/dist/full.min.css" rel="stylesheet" type="text/css" />
     <style>
-        body {
-            font-family: 'Roboto', sans-serif;
-            background-color: #f4f7f9;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        h1 {
-            color: #2c3e50;
-            margin-bottom: 30px;
-        }
-        #scanner-container {
-            position: relative;
-            width: 100%;
-            max-width: 600px;
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
-            display: block;
-            border: 3px solid #3498db;
-        }
-        
-        #scanner-container canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        
-        .scanner-overlay {
+        /* Estilos mínimos personalizados para el escáner */
+        #scanner-container .scanner-overlay {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             width: 250px;
             height: 150px;
-            border: 2px solid #e74c3c;
+            border: 2px solid #ef4444;
             border-radius: 10px;
             box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.3);
             z-index: 10;
+            pointer-events: none;
         }
         
-        .scanner-overlay::before {
+        #scanner-container .scanner-overlay::before {
             content: '';
             position: absolute;
             top: -2px;
             left: -2px;
             right: -2px;
             bottom: -2px;
-            border: 2px solid #e74c3c;
+            border: 2px solid #ef4444;
             border-radius: 10px;
             animation: pulse 2s infinite;
+        }
+        
+        /* Solo mostrar el overlay cuando el escáner está activo */
+        #scanner-container.hidden .scanner-overlay {
+            display: none;
         }
         
         @keyframes pulse {
@@ -68,184 +45,95 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
-        video, #interactive.viewport {
-            width: 100%;
-            height: auto;
-        }
         
         #video {
             width: 100%;
             height: auto;
             border-radius: 8px;
         }
-        .drawingBuffer {
-            display: none;
-        }
-        #result-container {
-            width: 100%;
-            max-width: 600px;
-            text-align: center;
-        }
-        .price-card {
-            background-color: #fff;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            margin: 15px 0;
-            padding: 20px;
-            transition: transform 0.2s;
-        }
-        .price-card:hover {
-            transform: translateY(-5px);
-        }
-        .price-card .retailer {
-            font-weight: 700;
-            font-size: 1.2em;
-            color: #3498db;
-            margin-bottom: 10px;
-        }
-        .price-card .price-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        .price-card .price {
-            font-size: 1.3em;
-            font-weight: 300;
-            color: #2ecc71;
-            text-decoration: none;
-        }
-        .price-card .price:hover {
-            text-decoration: underline;
-        }
-        .price-card .price-peso {
-            font-size: 1.1em;
-            color: #f39c12;
-            margin-left: 10px;
-        }
-        .price-card .price.searching {
-            color: #f39c12;
-        }
-        .discount-table {
-            background-color: #f8f9fa;
-            border-radius: 5px;
-            padding: 10px;
-            margin-top: 15px;
-            font-size: 0.9em;
-        }
-        .discount-table h4 {
-            margin: 0 0 10px 0;
-            color: #2c3e50;
-        }
-        .discount-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-            align-items: center;
-        }
-        .discount-row.original-price {
-            background-color: #e8f5e8;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #27ae60;
-            margin: 8px 0;
-        }
-        .discount-info {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-        .discount-label {
-            font-weight: 600;
-            color: #e74c3c;
-            font-size: 1em;
-        }
-        .savings-info {
-            font-size: 0.8em;
-            color: #27ae60;
-            font-style: italic;
-            margin-top: 2px;
-        }
-        .final-price {
-            font-weight: 600;
-            color: #2ecc71;
-            font-size: 1.1em;
-        }
-        .discount-btn {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9em;
-            font-weight: 500;
-            transition: background-color 0.3s ease;
-        }
-        .discount-btn:hover {
-            background-color: #2980b9;
-        }
-        .store-discount-table {
-            margin-top: 10px;
-            border-top: 1px solid #ecf0f1;
-            padding-top: 10px;
-        }
-        .store-discount-table .discount-table {
-            margin: 0;
-            font-size: 0.85em;
-        }
-        #product-info {
-            margin-bottom: 20px;
-        }
-        #product-title {
-            font-size: 1.4em;
-            font-weight: 700;
-            color: #333;
-        }
-        #camera-toggle-btn {
-            margin-top: 20px;
-            padding: 10px 20px;
-            font-size: 1em;
-            color: #fff;
-            background-color: #e74c3c;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        #camera-toggle-btn:hover {
-            background-color: #c0392b;
-        }
-        #camera-toggle-btn.on {
-            background-color: #2ecc71; /* Verde cuando la acción es prender */
-        }
-        #camera-toggle-btn.on:hover {
-            background-color: #27ae60;
-        }
     </style>
 </head>
-<body>
-    <h1>Escanea un Código de Barras</h1>
-    
-    <!-- Convertidor de divisas -->
-    <div style="background-color: #ecf0f1; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-        <label for="exchange-rate" style="font-weight: bold; margin-right: 10px;">Tipo de cambio (pesos por dólar):</label>
-        <input type="number" id="exchange-rate" value="20" min="1" max="100" step="0.1" 
-               style="padding: 5px; font-size: 14px; border: 1px solid #bdc3c7; border-radius: 4px; width: 80px; margin-right: 10px;">
-        <span style="color: #7f8c8d;">MXN por USD</span>
+<body class="bg-base-200 min-h-screen font-roboto">
+    <!-- Header con logo -->
+    <div class="navbar bg-base-100 shadow-lg">
+        <div class="flex-1">
+            <img src="2.jpg" alt="Logo" class="h-10 w-auto mr-3">
+            <a class="btn btn-ghost text-xl">Comparador de Precios</a>
+        </div>
     </div>
-    
-    <!-- Input manual para código de barras -->
-    <div style="margin-bottom: 20px;">
-        <input type="text" id="manual-barcode" placeholder="Escribe código de barras aquí..." 
-               style="padding: 10px; font-size: 16px; border: 2px solid #3498db; border-radius: 5px; width: 250px; margin-right: 10px;">
-        <button id="search-manual-btn" style="padding: 10px 15px; font-size: 16px; background-color: #3498db; color: white; border: none; border-radius: 5px; cursor: pointer;">
-            Buscar
-        </button>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <!-- Hero Section -->
+        <div class="hero bg-gradient-to-r from-primary to-secondary rounded-lg mb-8 text-primary-content">
+            <div class="hero-content text-center">
+                <div class="max-w-md">
+                    <h1 class="mb-5 text-3xl font-bold">📱 Escanea un Código de Barras</h1>
+                    <p class="mb-5">Encuentra los mejores precios de productos al instante</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Convertidor de divisas -->
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">💱 Convertidor de Divisas</h2>
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold">Tipo de cambio (pesos por dólar):</span>
+                    </label>
+                    <div class="input-group">
+                        <input type="number" id="exchange-rate" value="20" min="1" max="100" step="0.1" 
+                               class="input input-bordered w-24">
+                        <span class="bg-base-200 px-3 py-2 text-base-content">MXN por USD</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input manual para código de barras -->
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">⌨️ Búsqueda Manual</h2>
+                <div class="form-control">
+                    <div class="input-group">
+                        <input type="text" id="manual-barcode" placeholder="Escribe código de barras aquí..." 
+                               class="input input-bordered flex-1">
+                        <button id="search-manual-btn" class="btn btn-primary">
+                            🔍 Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Scanner -->
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">📷 Escáner de Código de Barras</h2>
+                <div id="scanner-container" class="relative rounded-lg overflow-hidden border-2 border-primary hidden">
+                    <video id="video" autoplay muted playsinline class="w-full h-auto"></video>
+                    <div class="scanner-overlay"></div>
+                    <canvas id="canvas" class="hidden"></canvas>
+                </div>
+                <div class="card-actions justify-center">
+                    <button id="camera-toggle-btn" class="btn btn-error">
+                        📱 Prender Cámara
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Resultado del producto -->
+        <div id="result-container">
+            <div id="product-info" class="text-center mb-6">
+                <div class="alert alert-info">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    <span id="product-title">📱 Apunta la cámara a un código de barras</span>
+                </div>
+            </div>
+            <div id="prices" class="space-y-4"></div>
+        </div>
     </div>
-    
-    <div id="scanner-container">
-        <video id="video" autoplay muted playsinline></video>
         <div class="scanner-overlay"></div>
         <canvas id="canvas" style="display: none;"></canvas>
     </div>
@@ -346,9 +234,9 @@
 
                 isCameraOn = true;
                 scanning = true;
-                scannerContainer.style.display = 'block';
+                scannerContainer.classList.remove('hidden');
                 cameraBtn.textContent = 'Apagar Cámara';
-                cameraBtn.classList.remove('on');
+                cameraBtn.className = 'btn btn-error';
                 productTitleEl.innerText = '📱 Apunta la cámara a un código de barras';
                 
                 console.log('Cámara iniciada correctamente');
@@ -377,9 +265,9 @@
                 codeReader.reset();
             }
 
-            scannerContainer.style.display = 'none';
+            scannerContainer.classList.add('hidden');
             cameraBtn.textContent = 'Prender Cámara';
-            cameraBtn.classList.add('on');
+            cameraBtn.className = 'btn btn-success';
             productTitleEl.innerText = '📷 Cámara apagada. Presiona "Prender Cámara" para continuar.';
             lastDetectedCode = '';
         }
@@ -486,7 +374,7 @@
                     const link = offer.link;
                     
                     if (price && merchant) {
-                        createAdvancedPriceCard(merchant, price, listPrice, link);
+                        createAdvancedPriceCard(merchant, price, listPrice, link, item.images && item.images[0], productName);
                         if (!basePrice) basePrice = price; // Usar el primer precio como base
                     }
                 });
@@ -500,11 +388,11 @@
                 const highPrice = item.highest_recorded_price;
                 
                 if (lowPrice) {
-                    createAdvancedPriceCard('Precio Mínimo Registrado', lowPrice, null, null);
+                    createAdvancedPriceCard('Precio Mínimo Registrado', lowPrice, null, null, item.images && item.images[0], productName);
                     basePrice = lowPrice;
                 }
                 if (highPrice && highPrice !== lowPrice) {
-                    createAdvancedPriceCard('Precio Máximo Registrado', highPrice, null, null);
+                    createAdvancedPriceCard('Precio Máximo Registrado', highPrice, null, null, item.images && item.images[0], productName);
                 }
                 
                 // Cada tienda ahora tiene su propia tabla de descuentos en su card
@@ -653,78 +541,95 @@
 
         function createPriceCard(retailer, price) {
             const card = document.createElement('div');
-            card.className = 'price-card';
-            const priceClass = price === 'Buscando...' ? 'price searching' : 'price';
+            card.className = 'alert alert-info';
+            const isSearching = price === 'Buscando...';
             card.innerHTML = `
-                <span class="retailer">${retailer}</span>
-                <span class="${priceClass}">${price}</span>
+                <div class="flex items-center">
+                    ${isSearching ? '<span class="loading loading-spinner loading-sm"></span>' : '<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'}
+                    <div class="ml-3">
+                        <div class="font-bold">${retailer}</div>
+                        <div class="text-xs">${price}</div>
+                    </div>
+                </div>
             `;
-            pricesEl.appendChild(card);
+            document.getElementById('prices').appendChild(card);
         }
 
-        function createAdvancedPriceCard(merchant, salePrice, listPrice, link) {
+        function createAdvancedPriceCard(merchant, salePrice, listPrice, link, productImage, productTitle) {
             const card = document.createElement('div');
-            card.className = 'price-card';
+            card.className = 'card card-side bg-base-100 shadow-xl mb-4';
             
             const salePricePesos = convertToPesos(salePrice);
             let listPricePesos = '';
             
             let priceHtml = '';
+            let discountBadge = '';
             
             // Si hay precio regular (list_price)
             if (listPrice && listPrice > salePrice) {
                 listPricePesos = convertToPesos(listPrice);
                 const discount = Math.round(((listPrice - salePrice) / listPrice) * 100);
                 
+                discountBadge = `<div class="badge badge-error">${discount}% OFF</div>`;
                 priceHtml = `
-                    <div class="price-info">
-                        <div>
-                            <div style="text-decoration: line-through; color: #95a5a6; font-size: 0.9em;">
-                                Precio regular: $${listPrice} USD (${listPricePesos} MXN)
-                            </div>
-                            ${link ? `<a href="${link}" target="_blank" class="price">` : '<span class="price">'}
-                                $${salePrice} USD
-                            ${link ? '</a>' : '</span>'}
-                            <span class="price-peso">(${salePricePesos} MXN)</span>
-                            <div style="color: #e74c3c; font-weight: bold; font-size: 0.9em;">
-                                ¡${discount}% de descuento!
-                            </div>
-                        </div>
+                    <div class="text-sm line-through opacity-60">
+                        Precio regular: $${listPrice} USD (${listPricePesos} MXN)
+                    </div>
+                    <div class="text-lg font-bold text-success">
+                        ${link ? `<a href="${link}" target="_blank" class="link link-success">` : ''}
+                            $${salePrice} USD
+                        ${link ? '</a>' : ''}
+                        <span class="text-warning ml-2">(${salePricePesos} MXN)</span>
                     </div>
                 `;
             } 
             // Solo precio de venta
             else {
                 priceHtml = `
-                    <div class="price-info">
-                        <div>
-                            ${link ? `<a href="${link}" target="_blank" class="price">` : '<span class="price">'}
-                                $${salePrice} USD
-                            ${link ? '</a>' : '</span>'}
-                            <span class="price-peso">(${salePricePesos} MXN)</span>
-                        </div>
+                    <div class="text-lg font-bold text-success">
+                        ${link ? `<a href="${link}" target="_blank" class="link link-success">` : ''}
+                            $${salePrice} USD
+                        ${link ? '</a>' : ''}
+                        <span class="text-warning ml-2">(${salePricePesos} MXN)</span>
                     </div>
                 `;
             }
             
-            // Crear ID único para esta tienda - método más robusto
+            // Crear ID único para esta tienda
             const storeId = merchant.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Date.now();
             const discountTableId = `discount-table-${storeId}`;
             
+            // Usar imagen del producto si está disponible, si no usar placeholder
+            const imageUrl = productImage || 'https://via.placeholder.com/150x150?text=No+Image';
+            const title = productTitle || 'Producto';
+            
             card.innerHTML = `
-                <div class="retailer">${merchant}</div>
-                ${priceHtml}
-                <div style="margin-top: 10px;">
-                    <button class="discount-btn" onclick="toggleDiscountTable('${discountTableId}', ${salePrice})">
-                        📊 Ver Descuentos
-                    </button>
-                </div>
-                <div id="${discountTableId}" class="store-discount-table" style="display: none;">
-                    <!-- La tabla se generará dinámicamente -->
+                <figure class="w-32 h-32">
+                    <img src="${imageUrl}" alt="${title}" class="w-full h-full object-cover" 
+                         onerror="this.src='https://via.placeholder.com/150x150?text=No+Image'">
+                </figure>
+                <div class="card-body flex-1">
+                    <div class="flex justify-between items-start mb-2">
+                        <h2 class="card-title text-primary">${merchant}</h2>
+                        ${discountBadge}
+                    </div>
+                    ${priceHtml}
+                    <div class="card-actions justify-end mt-4">
+                        <button class="btn btn-primary btn-sm" onclick="toggleDiscountTable('${discountTableId}', ${salePrice})">
+                            📊 Ver Descuentos
+                        </button>
+                        ${link ? `<a href="${link}" target="_blank" class="btn btn-outline btn-sm">🛒 Comprar</a>` : ''}
+                    </div>
+                    <div id="${discountTableId}" class="mt-2" style="display: none;">
+                        <div class="divider"></div>
+                        <div class="discount-content">
+                            <!-- La tabla se generará dinámicamente -->
+                        </div>
+                    </div>
                 </div>
             `;
             
-            pricesEl.appendChild(card);
+            document.getElementById('prices').appendChild(card);
         }
 
         // Función para mostrar/ocultar tabla de descuentos específica por tienda
@@ -741,18 +646,19 @@
             if (table.style.display === 'none' || table.style.display === '') {
                 // Mostrar tabla - generar contenido si no existe
                 console.log('Mostrando tabla para precio:', storePrice);
-                if (table.innerHTML.trim() === '' || table.innerHTML.includes('<!-- La tabla se generará dinámicamente -->')) {
-                    table.innerHTML = generateStoreDiscountTable(storePrice);
+                const content = table.querySelector('.discount-content');
+                if (content && (content.innerHTML.trim() === '' || content.innerHTML.includes('<!-- La tabla se generará dinámicamente -->'))) {
+                    content.innerHTML = generateStoreDiscountTable(storePrice);
                 }
                 table.style.display = 'block';
                 button.textContent = '🔼 Ocultar Descuentos';
-                button.style.backgroundColor = '#e74c3c';
+                button.className = 'btn btn-error btn-sm';
             } else {
                 // Ocultar tabla
                 console.log('Ocultando tabla');
                 table.style.display = 'none';
                 button.textContent = '📊 Ver Descuentos';
-                button.style.backgroundColor = '#3498db';
+                button.className = 'btn btn-primary btn-sm';
             }
         }
 
@@ -764,22 +670,24 @@
             
             if (isNaN(price) || price <= 0) {
                 console.error('Precio inválido:', originalPrice);
-                return '<div class="discount-table"><p>Error: Precio inválido</p></div>';
+                return '<div class="alert alert-error"><span>Error: Precio inválido</span></div>';
             }
             
-            let tableHtml = '<div class="discount-table">';
-            tableHtml += '<h4>💰 Descuentos para este precio</h4>';
+            let tableHtml = '<div class="bg-base-200 rounded-lg p-4">';
+            tableHtml += '<h4 class="font-bold text-lg mb-4">💰 Descuentos para este precio</h4>';
             
             // Mostrar precio base original
             const originalPesosPrice = (price * rate).toFixed(2);
-            tableHtml += `<div class="discount-row original-price">
-                <span><strong>💵 Precio Base:</strong></span>
-                <span><strong>$${originalPesosPrice} MXN</strong></span>
+            tableHtml += `<div class="alert alert-info mb-4">
+                <span class="font-semibold">💵 Precio Base: $${originalPesosPrice} MXN</span>
             </div>`;
             
-            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
-            
             const discounts = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
+            
+            tableHtml += '<div class="overflow-x-auto">';
+            tableHtml += '<table class="table table-zebra w-full">';
+            tableHtml += '<thead><tr><th>Multiplicador</th><th>Ahorros</th><th>Precio Final</th></tr></thead>';
+            tableHtml += '<tbody>';
             
             discounts.forEach(discount => {
                 const discountedPrice = price * (1 - discount / 100);
@@ -787,16 +695,14 @@
                 const savings = (originalPesosPrice - pesosPrice).toFixed(2);
                 const multiplier = (1 - discount / 100).toFixed(2);
                 
-                tableHtml += `<div class="discount-row">
-                    <div class="discount-info">
-                        <span class="discount-label">${multiplier}:</span>
-                        <span class="savings-info">Ahorras $${savings} MXN (${discount}% OFF)</span>
-                    </div>
-                    <span class="final-price">$${pesosPrice} MXN</span>
-                </div>`;
+                tableHtml += `<tr>
+                    <td><div class="badge badge-primary">${multiplier}</div></td>
+                    <td><span class="text-success font-semibold">$${savings} MXN</span> <span class="text-sm opacity-70">(${discount}% OFF)</span></td>
+                    <td><span class="text-lg font-bold text-success">$${pesosPrice} MXN</span></td>
+                </tr>`;
             });
             
-            tableHtml += '</div>';
+            tableHtml += '</tbody></table></div></div>';
             console.log('Tabla HTML generada:', tableHtml.length, 'caracteres');
             return tableHtml;
         }
