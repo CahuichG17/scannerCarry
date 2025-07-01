@@ -126,50 +126,6 @@
         .price-card .price.searching {
             color: #f39c12;
         }
-        .price-source-table {
-            background-color: #e8f5e8;
-            border-radius: 5px;
-            padding: 12px;
-            margin: 15px 0;
-            font-size: 0.9em;
-            border-left: 4px solid #27ae60;
-        }
-        .price-source-table h4 {
-            margin: 0 0 10px 0;
-            color: #27ae60;
-            font-size: 1em;
-        }
-        .source-row {
-            display: flex;
-            justify-content: space-between;
-            margin: 5px 0;
-            padding: 3px 0;
-            border-bottom: 1px solid #d5f5d5;
-        }
-        .source-row:last-child {
-            border-bottom: none;
-        }
-        .source-row.base-price {
-            background-color: #fff3cd;
-            padding: 8px;
-            border-radius: 4px;
-            border: 1px solid #ffeaa7;
-            margin: 8px 0;
-        }
-        .source-row.discount-price {
-            background-color: #d4edda;
-            color: #155724;
-            padding: 5px 8px;
-            border-radius: 3px;
-            border-left: 3px solid #28a745;
-        }
-        .source-row.premium-price {
-            background-color: #f8d7da;
-            color: #721c24;
-            padding: 5px 8px;
-            border-radius: 3px;
-            border-left: 3px solid #dc3545;
-        }
         .discount-table {
             background-color: #f8f9fa;
             border-radius: 5px;
@@ -305,115 +261,6 @@
             return (dollarAmount * rate).toFixed(2);
         }
 
-        function generatePriceSourceTable(offers, lowestPrice, highestPrice, basePrice) {
-            let tableHtml = '<div class="price-source-table">';
-            tableHtml += '<h4>📋 Precios Reales vs Precio Base</h4>';
-            
-            // Determinar precio base si no se proporciona
-            let actualBasePrice = basePrice;
-            if (!actualBasePrice) {
-                if (offers && offers.length > 0 && offers[0].price) {
-                    actualBasePrice = offers[0].price;
-                } else if (lowestPrice) {
-                    actualBasePrice = lowestPrice;
-                }
-            }
-            
-            if (!actualBasePrice) {
-                tableHtml += '<div class="source-row"><span>No hay precios disponibles</span></div>';
-                tableHtml += '</div>';
-                return tableHtml;
-            }
-            
-            // Mostrar precio base usado para cálculos
-            const pesosPriceBase = convertToPesos(actualBasePrice);
-            tableHtml += `<div class="source-row base-price">
-                <span><strong>🎯 Precio Base (para descuentos):</strong></span>
-                <span><strong>$${actualBasePrice} USD (${pesosPriceBase} MXN)</strong></span>
-            </div>`;
-            
-            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
-            
-            // Mostrar precios de ofertas con su descuento respecto al precio base
-            if (offers && offers.length > 0) {
-                tableHtml += '<div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 5px;">📊 Comparación con precios de tiendas:</div>';
-                offers.forEach(offer => {
-                    if (offer.price) {
-                        const pesosPrice = convertToPesos(offer.price);
-                        const discountPercent = ((actualBasePrice - offer.price) / actualBasePrice * 100).toFixed(1);
-                        const isDiscount = offer.price < actualBasePrice;
-                        const isPremium = offer.price > actualBasePrice;
-                        
-                        let priceClass = 'source-row';
-                        let icon = '🛒';
-                        let discountText = '';
-                        
-                        if (isDiscount) {
-                            priceClass += ' discount-price';
-                            icon = '🔥';
-                            discountText = ` (${discountPercent}% descuento)`;
-                        } else if (isPremium) {
-                            const premiumPercent = ((offer.price - actualBasePrice) / actualBasePrice * 100).toFixed(1);
-                            priceClass += ' premium-price';
-                            icon = '💎';
-                            discountText = ` (+${premiumPercent}% premium)`;
-                        } else {
-                            discountText = ' (mismo precio)';
-                        }
-                        
-                        tableHtml += `<div class="${priceClass}">
-                            <span>${icon} ${offer.merchant}${discountText}:</span>
-                            <span>$${offer.price} USD (${pesosPrice} MXN)</span>
-                        </div>`;
-                    }
-                });
-            }
-            
-            // Mostrar precios registrados con su comparación
-            if (lowestPrice || highestPrice) {
-                tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
-                tableHtml += '<div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 5px;">📈 Rangos de precios históricos:</div>';
-                
-                if (lowestPrice) {
-                    const pesosLow = convertToPesos(lowestPrice);
-                    const discountPercent = ((actualBasePrice - lowestPrice) / actualBasePrice * 100).toFixed(1);
-                    const isDiscount = lowestPrice < actualBasePrice;
-                    
-                    let discountText = isDiscount ? ` (${discountPercent}% por debajo del base)` : 
-                                     lowestPrice > actualBasePrice ? ` (+${((lowestPrice - actualBasePrice) / actualBasePrice * 100).toFixed(1)}% por encima del base)` : 
-                                     ' (igual al precio base)';
-                    
-                    tableHtml += `<div class="source-row ${isDiscount ? 'discount-price' : ''}">
-                        <span>📉 Precio Mínimo Registrado${discountText}:</span>
-                        <span>$${lowestPrice} USD (${pesosLow} MXN)</span>
-                    </div>`;
-                }
-                
-                if (highestPrice && highestPrice !== lowestPrice) {
-                    const pesosHigh = convertToPesos(highestPrice);
-                    const premiumPercent = ((highestPrice - actualBasePrice) / actualBasePrice * 100).toFixed(1);
-                    const isPremium = highestPrice > actualBasePrice;
-                    
-                    let priceText = isPremium ? ` (+${premiumPercent}% por encima del base)` : 
-                                  highestPrice < actualBasePrice ? ` (${((actualBasePrice - highestPrice) / actualBasePrice * 100).toFixed(1)}% por debajo del base)` : 
-                                  ' (igual al precio base)';
-                    
-                    tableHtml += `<div class="source-row ${isPremium ? 'premium-price' : ''}">
-                        <span>📈 Precio Máximo Registrado${priceText}:</span>
-                        <span>$${highestPrice} USD (${pesosHigh} MXN)</span>
-                    </div>`;
-                }
-            }
-            
-            tableHtml += '<div style="margin-top: 12px; font-size: 0.85em; color: #7f8c8d; font-style: italic; background: #f8f9fa; padding: 8px; border-radius: 4px;">';
-            tableHtml += '💡 <strong>Nota:</strong> La tabla de descuentos de abajo se calcula usando el precio base mostrado arriba. ';
-            tableHtml += 'Los porcentajes mostrados aquí indican cuánto descuento/premium tiene cada tienda respecto a ese precio base.';
-            tableHtml += '</div>';
-            
-            tableHtml += '</div>';
-            return tableHtml;
-        }
-
         function generateDiscountTable(originalPrice) {
             const price = parseFloat(originalPrice);
             const rate = getExchangeRate();
@@ -421,7 +268,6 @@
             let tableHtml = '<div class="discount-table">';
             tableHtml += '<h4>💰 Tabla de Descuentos</h4>';
             
-            // Mostrar precio base original
             const originalPesosPrice = (price * rate).toFixed(2);
             tableHtml += `<div class="discount-row original-price">
                 <span><strong>💵 Precio Base:</strong></span>
@@ -436,11 +282,11 @@
                 const discountedPrice = price * (1 - discount / 100);
                 const pesosPrice = (discountedPrice * rate).toFixed(2);
                 const savings = (originalPesosPrice - pesosPrice).toFixed(2);
+                const multiplier = (1 - discount / 100).toFixed(2); // El multiplicador (ej: 0.70 para 30% off)
                 
                 tableHtml += `<div class="discount-row">
                     <div class="discount-info">
-                        <span class="discount-label">${discount}% OFF:</span>
-                        <span class="savings-info">Ahorras $${savings} MXN</span>
+                        <span class="discount-label">${multiplier}:</span>
                     </div>
                     <span class="final-price">$${pesosPrice} MXN</span>
                 </div>`;
@@ -657,10 +503,6 @@
                     }
                 });
                 
-                // Agregar tabla de precios fuente
-                const priceSourceTable = generatePriceSourceTable(item.offers, item.lowest_recorded_price, item.highest_recorded_price, basePrice);
-                pricesEl.innerHTML += priceSourceTable;
-                
                 // Agregar tabla de descuentos basada en el primer precio
                 if (basePrice) {
                     const discountTable = generateDiscountTable(basePrice);
@@ -681,12 +523,8 @@
                     createAdvancedPriceCard('Precio Máximo Registrado', highPrice, null, null);
                 }
                 
-                // Agregar tabla de precios fuente
-                const avgPrice = highPrice && lowPrice ? (lowPrice + highPrice) / 2 : lowPrice;
-                const priceSourceTable = generatePriceSourceTable(null, lowPrice, highPrice, avgPrice);
-                pricesEl.innerHTML += priceSourceTable;
-                
                 // Tabla de descuentos basada en precio promedio o mínimo
+                const avgPrice = highPrice && lowPrice ? (lowPrice + highPrice) / 2 : lowPrice;
                 if (avgPrice) {
                     const discountTable = generateDiscountTable(avgPrice);
                     pricesEl.innerHTML += discountTable;
