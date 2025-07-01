@@ -171,6 +171,29 @@
             color: #2ecc71;
             font-size: 1.1em;
         }
+        .discount-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+        .discount-btn:hover {
+            background-color: #2980b9;
+        }
+        .store-discount-table {
+            margin-top: 10px;
+            border-top: 1px solid #ecf0f1;
+            padding-top: 10px;
+        }
+        .store-discount-table .discount-table {
+            margin: 0;
+            font-size: 0.85em;
+        }
         #product-info {
             margin-bottom: 20px;
         }
@@ -259,41 +282,6 @@
         function convertToPesos(dollarAmount) {
             const rate = getExchangeRate();
             return (dollarAmount * rate).toFixed(2);
-        }
-
-        function generateDiscountTable(originalPrice) {
-            const price = parseFloat(originalPrice);
-            const rate = getExchangeRate();
-            
-            let tableHtml = '<div class="discount-table">';
-            tableHtml += '<h4>💰 Tabla de Descuentos</h4>';
-            
-            const originalPesosPrice = (price * rate).toFixed(2);
-            tableHtml += `<div class="discount-row original-price">
-                <span><strong>💵 Precio Base:</strong></span>
-                <span><strong>$${originalPesosPrice} MXN</strong></span>
-            </div>`;
-            
-            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
-            
-            const discounts = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
-            
-            discounts.forEach(discount => {
-                const discountedPrice = price * (1 - discount / 100);
-                const pesosPrice = (discountedPrice * rate).toFixed(2);
-                const savings = (originalPesosPrice - pesosPrice).toFixed(2);
-                const multiplier = (1 - discount / 100).toFixed(2); // El multiplicador (ej: 0.70 para 30% off)
-                
-                tableHtml += `<div class="discount-row">
-                    <div class="discount-info">
-                        <span class="discount-label">${multiplier}:</span>
-                    </div>
-                    <span class="final-price">$${pesosPrice} MXN</span>
-                </div>`;
-            });
-            
-            tableHtml += '</div>';
-            return tableHtml;
         }
 
         function initializeScanner() {
@@ -396,7 +384,7 @@
             lastDetectedCode = '';
         }
 
-        function handleBarcodeDetected(code) {
+        function handleBarcodeDetected(code = '') {
             if (isSearching || lastDetectedCode === code) {
                 console.log('Código ya detectado o búsqueda en progreso');
                 return;
@@ -503,11 +491,7 @@
                     }
                 });
                 
-                // Agregar tabla de descuentos basada en el primer precio
-                if (basePrice) {
-                    const discountTable = generateDiscountTable(basePrice);
-                    pricesEl.innerHTML += discountTable;
-                }
+                // Cada tienda ahora tiene su propia tabla de descuentos en su card
             }
 
             // Si no hay ofertas, mostrar precios registrados si existen
@@ -523,12 +507,7 @@
                     createAdvancedPriceCard('Precio Máximo Registrado', highPrice, null, null);
                 }
                 
-                // Tabla de descuentos basada en precio promedio o mínimo
-                const avgPrice = highPrice && lowPrice ? (lowPrice + highPrice) / 2 : lowPrice;
-                if (avgPrice) {
-                    const discountTable = generateDiscountTable(avgPrice);
-                    pricesEl.innerHTML += discountTable;
-                }
+                // Cada tienda ahora tiene su propia tabla de descuentos en su card
             }
 
             // Si no hay ofertas ni precios registrados
@@ -728,12 +707,98 @@
                 `;
             }
             
+            // Crear ID único para esta tienda - método más robusto
+            const storeId = merchant.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase() + '-' + Date.now();
+            const discountTableId = `discount-table-${storeId}`;
+            
             card.innerHTML = `
                 <div class="retailer">${merchant}</div>
                 ${priceHtml}
+                <div style="margin-top: 10px;">
+                    <button class="discount-btn" onclick="toggleDiscountTable('${discountTableId}', ${salePrice})">
+                        📊 Ver Descuentos
+                    </button>
+                </div>
+                <div id="${discountTableId}" class="store-discount-table" style="display: none;">
+                    <!-- La tabla se generará dinámicamente -->
+                </div>
             `;
             
             pricesEl.appendChild(card);
+        }
+
+        // Función para mostrar/ocultar tabla de descuentos específica por tienda
+        function toggleDiscountTable(tableId, storePrice) {
+            console.log('Toggle discount table:', tableId, storePrice);
+            const table = document.getElementById(tableId);
+            const button = event.target;
+            
+            if (!table) {
+                console.error('No se encontró tabla con ID:', tableId);
+                return;
+            }
+            
+            if (table.style.display === 'none' || table.style.display === '') {
+                // Mostrar tabla - generar contenido si no existe
+                console.log('Mostrando tabla para precio:', storePrice);
+                if (table.innerHTML.trim() === '' || table.innerHTML.includes('<!-- La tabla se generará dinámicamente -->')) {
+                    table.innerHTML = generateStoreDiscountTable(storePrice);
+                }
+                table.style.display = 'block';
+                button.textContent = '🔼 Ocultar Descuentos';
+                button.style.backgroundColor = '#e74c3c';
+            } else {
+                // Ocultar tabla
+                console.log('Ocultando tabla');
+                table.style.display = 'none';
+                button.textContent = '📊 Ver Descuentos';
+                button.style.backgroundColor = '#3498db';
+            }
+        }
+
+        // Función para generar tabla de descuentos específica para una tienda
+        function generateStoreDiscountTable(originalPrice) {
+            console.log('Generando tabla de descuentos para precio:', originalPrice);
+            const price = parseFloat(originalPrice);
+            const rate = getExchangeRate();
+            
+            if (isNaN(price) || price <= 0) {
+                console.error('Precio inválido:', originalPrice);
+                return '<div class="discount-table"><p>Error: Precio inválido</p></div>';
+            }
+            
+            let tableHtml = '<div class="discount-table">';
+            tableHtml += '<h4>💰 Descuentos para este precio</h4>';
+            
+            // Mostrar precio base original
+            const originalPesosPrice = (price * rate).toFixed(2);
+            tableHtml += `<div class="discount-row original-price">
+                <span><strong>💵 Precio Base:</strong></span>
+                <span><strong>$${originalPesosPrice} MXN</strong></span>
+            </div>`;
+            
+            tableHtml += '<div style="border-top: 1px solid #ecf0f1; margin: 8px 0; padding-top: 8px;"></div>';
+            
+            const discounts = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
+            
+            discounts.forEach(discount => {
+                const discountedPrice = price * (1 - discount / 100);
+                const pesosPrice = (discountedPrice * rate).toFixed(2);
+                const savings = (originalPesosPrice - pesosPrice).toFixed(2);
+                const multiplier = (1 - discount / 100).toFixed(2);
+                
+                tableHtml += `<div class="discount-row">
+                    <div class="discount-info">
+                        <span class="discount-label">${multiplier}:</span>
+                        <span class="savings-info">Ahorras $${savings} MXN (${discount}% OFF)</span>
+                    </div>
+                    <span class="final-price">$${pesosPrice} MXN</span>
+                </div>`;
+            });
+            
+            tableHtml += '</div>';
+            console.log('Tabla HTML generada:', tableHtml.length, 'caracteres');
+            return tableHtml;
         }
 
         cameraBtn.addEventListener('click', () => {
