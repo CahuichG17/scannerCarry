@@ -615,7 +615,7 @@
                     </div>
                     ${priceHtml}
                     <div class="card-actions justify-end mt-4">
-                        <button class="btn btn-primary btn-sm" onclick="toggleDiscountTable('${discountTableId}', ${salePrice})">
+                        <button class="btn btn-primary btn-sm" onclick="toggleDiscountTable('${discountTableId}', ${salePrice}, ${listPrice || salePrice})">
                             📊 Ver Descuentos
                         </button>
                         ${link ? `<a href="${link}" target="_blank" class="btn btn-outline btn-sm">🛒 Comprar</a>` : ''}
@@ -633,8 +633,8 @@
         }
 
         // Función para mostrar/ocultar tabla de descuentos específica por tienda
-        function toggleDiscountTable(tableId, storePrice) {
-            console.log('Toggle discount table:', tableId, storePrice);
+        function toggleDiscountTable(tableId, salePrice, regularPrice) {
+            console.log('Toggle discount table:', tableId, salePrice, 'regular:', regularPrice);
             const table = document.getElementById(tableId);
             const button = event.target;
             
@@ -645,10 +645,10 @@
             
             if (table.style.display === 'none' || table.style.display === '') {
                 // Mostrar tabla - generar contenido si no existe
-                console.log('Mostrando tabla para precio:', storePrice);
+                console.log('Mostrando tabla para precio regular:', regularPrice);
                 const content = table.querySelector('.discount-content');
                 if (content && (content.innerHTML.trim() === '' || content.innerHTML.includes('<!-- La tabla se generará dinámicamente -->'))) {
-                    content.innerHTML = generateStoreDiscountTable(storePrice);
+                    content.innerHTML = generateStoreDiscountTable(salePrice, regularPrice);
                 }
                 table.style.display = 'block';
                 button.textContent = '🔼 Ocultar Descuentos';
@@ -663,24 +663,37 @@
         }
 
         // Función para generar tabla de descuentos específica para una tienda
-        function generateStoreDiscountTable(originalPrice) {
-            console.log('Generando tabla de descuentos para precio:', originalPrice);
-            const price = parseFloat(originalPrice);
+        function generateStoreDiscountTable(salePrice, regularPrice) {
+            console.log('Generando tabla de descuentos - Precio venta:', salePrice, 'Precio regular:', regularPrice);
+            
+            // Usar precio regular como base, si no existe usar precio de venta
+            const basePrice = regularPrice && regularPrice > salePrice ? regularPrice : salePrice;
+            const price = parseFloat(basePrice);
             const rate = getExchangeRate();
             
             if (isNaN(price) || price <= 0) {
-                console.error('Precio inválido:', originalPrice);
+                console.error('Precio inválido:', basePrice);
                 return '<div class="alert alert-error"><span>Error: Precio inválido</span></div>';
             }
             
             let tableHtml = '<div class="bg-base-200 rounded-lg p-4">';
             tableHtml += '<h4 class="font-bold text-lg mb-4">💰 Descuentos para este precio</h4>';
             
-            // Mostrar precio base original
+            // Mostrar precio base (precio regular o precio de venta si no hay regular)
             const originalPesosPrice = (price * rate).toFixed(2);
+            const priceType = regularPrice && regularPrice > salePrice ? 'Precio Regular' : 'Precio Base';
             tableHtml += `<div class="alert alert-info mb-4">
-                <span class="font-semibold">💵 Precio Base: $${originalPesosPrice} MXN</span>
+                <span class="font-semibold">💵 ${priceType}: $${originalPesosPrice} MXN</span>
             </div>`;
+            
+            // Si hay precio regular diferente al de venta, mostrar el precio actual también
+            if (regularPrice && regularPrice > salePrice) {
+                const currentSalePesos = (parseFloat(salePrice) * rate).toFixed(2);
+                const currentDiscount = Math.round(((regularPrice - salePrice) / regularPrice) * 100);
+                tableHtml += `<div class="alert alert-success mb-4">
+                    <span class="font-semibold">🎯 Precio Actual: $${currentSalePesos} MXN (${currentDiscount}% OFF del precio regular)</span>
+                </div>`;
+            }
             
             const discounts = [30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
             
